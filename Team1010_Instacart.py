@@ -81,6 +81,7 @@ class LossHistory(cb.Callback):
         self.losses.append(batch_loss)
 
 def _sigmoid_cross_entropy(y_true, y_pred):
+
     y_pred = K.clip(y_pred, _EPSILON, 1.0-_EPSILON)
     out = -(y_true * K.log(y_pred) + (1.0 - y_true) * K.log(1.0 - y_pred))
     return K.mean(out, axis=-1)
@@ -91,37 +92,42 @@ def init_model(numer_dim, item_dim, dept_dim):
     '''
     start_time = time.time()
     print ('Compiling Model ... ')
+
+    #Number Branch
     number_branch = Sequential()
     number_branch.add(Dense(32, input_dim=number_dim))
+    number_branch.add(Activation('relu'))
+    number_branch.add(Dropout(0.4))
 
+    #Item Branch
     item_branch = Sequential()
-    item_branch.add(Dense(32, input_dim=item_dim))
+    item_branch.add(Dense(16000, input_dim=item_dim))
+    item_branch.add(Activation('relu'))
+    item_branch.add(Dropout(0.4))
 
+    #Department Branch
     dept_branch = Sequential()
     dept_branch.add(Dense(32, input_dim=dept_dim))
+    dept_branch.add(Activation('relu'))
+    dept_branch.add(Dropout(0.4))
 
-    merged = Merge([number_branch, item_branch, dept_branch], mode='concat')
+    merged1 = Merge([item_branch, dept_branch], mode='concat')
+
+    item_dept_model = Sequential()
+    item_dept_model.add(merged1)
+    item_dept_model.add(Dense(8000, input_dim=item_dim))
+    item_dept_model.add(Activation('relu'))
+    item_dept_model.add(Dropout(0.4))
+
+    merged2 = Merge([number_branch, item_dept_model], mode='concat')
 
     final_model = Sequential()
-    final_model.add(merged)
-    final_model.add(Dense(10, activation='softmax'))
-
-
-    model = Sequential()
-    model.add(Dense(500, input_dim=350))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.4))
-    model.add(Dense(300))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.4))
-    model.add(Dense(100))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.4))
-    model.add(Dense(100))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.4))
-    model.add(Dense(15))
-    model.add(Activation('softmax'))
+    final_model.add(merged2)
+    final_model.add(Dense(8000))
+    final_model.add(Activation('relu'))
+    final_model.add(Dropout(0.4))
+    final_model.add(Dense(item_dim))
+    final_model.add(Activation('sigmoid'))
 
     rms = RMSprop()
 
@@ -151,9 +157,12 @@ def run_network(data=None, model=None, epochs=20, batch=200):
         callbacks_list = [checkpoint] + history
 
         print ('Training model...')
-        model.fit([train_Number, train_Item, train_Department], train_Y, epochs=epochs, batch_size=batch,
-                  callbacks=callbacks_list,
-                  validation_data=([test_Number, test_Item, test_Department], test_Y), verbose=2)
+        model.fit([train_Number, train_Item, train_Department], train_Y, 
+                    epochs=epochs, 
+                    batch_size=batch,
+                    callbacks=callbacks_list,
+                    validation_data=([test_Number, test_Item, test_Department], test_Y), 
+                    verbose=2)
 
         print ("Training duration : {0}".format(time.time() - start_time))
         score = model.evaluate([test_Number, test_Item, test_Department], test_Y, batch_size=16)
