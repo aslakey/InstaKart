@@ -127,9 +127,10 @@ def init_model(numer_dim, item_dim, dept_dim):
     final_model.add(Activation('relu'))
     final_model.add(Dropout(0.4))
     final_model.add(Dense(item_dim))
-    final_model.add(Activation('sigmoid'))
+    #final_model.add(Activation('sigmoid'))
 
-    rms = RMSprop()
+    #recommended param values, but we can test a little here (especially lr)
+    rms = RMSprop(lr=0.01, epsilon=1e-08, decay=0.0)
 
     #compile Graph
     model.compile(loss=_sigmoid_cross_entropy, optimizer=rms, metrics=['accuracy'])
